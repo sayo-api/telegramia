@@ -6,6 +6,10 @@
     "instagram_mqtt": "^1.2.2",
     "instagram-private-api": "^1.45.3",
     "node-schedule": "^2.1.1",
-    "request-promise": "^4.2.6"
+    "request-promise": "^4.2.6",
+    "path": "^0.12.7",
+    "fluent-ffmpeg": "^2.1.2",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "openai": "^3.2.1"
   }
 }

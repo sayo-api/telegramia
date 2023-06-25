@@ -7,13 +7,22 @@ const schedule = require('node-schedule');
 const axios = require('axios');
 const cheerio = require("cheerio");
 const express = require('express');
+const { Configuration, OpenAIApi } = require("openai");
 
 const app = express();
 app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+const { oggToMp3, streamToText } = require("./lib/convertVoice");
+const { removeStreams } = require("./lib/helpers");
+
 const { get } = pkg;
+
+const configuration = new Configuration({
+      apiKey: "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",
+    });
+const openai = new OpenAIApi(configuration);
 
 const ig = withRealtime(new IgApiClient())
 ig.state.generateDevice("kasumi");
@@ -60,7 +69,9 @@ $("div.thought-card.mb-20").each((_, say) => {
 }
 
   
-const postarInstagram = async () => {  
+(async () => {
+
+
 if (stateExists()) {
 await ig.state.deserialize(loadState());
 }
@@ -75,33 +86,82 @@ const serialized = await ig.state.serialize();
 delete serialized.constants; 
 saveState(serialized);
 }
-//postar
-schedule.scheduleJob("0 0 */1 * * *", async () => { 
-//imagem
-pensador("motivação").then(async resultado => { 
-let somenteum = resultado[Math.floor(Math.random() * resultado.length)]
-const imageBuffer = await get({
-        url: somenteum.imagem,
-        encoding: null, 
-})
+let meID = loggedInUser.pk
+let threads = await ig.feed.directInbox().request()
 
-//publicando...
-await ig.publish.photo({
-        file: imageBuffer,
-        caption: somenteum.frase + "\n\n#frases #motivação #diadia #fy #enriquece\n\nolhe a minha bio e te ensinarei a crescer 🤝",
+
+const postarfoto = async (img, legenda) => {       
+const imageBuffer = await get({
+url: img,
+encoding: null, 
 })
+await ig.publish.photo({
+file: imageBuffer,
+caption: legenda,
+})
+};
+
+//postar
+//schedule.scheduleJob("0 0 */1 * * *", async () => { 
+/*const ArrayTema = ["motivação","rimas","mentalidade","reflexões","poesia","músicas","lírico","dinheiro","inspiração"]
+let tema = ArrayTema[Math.floor(Math.random() * ArrayTema.length)]
+//imagem
+pensador(tema).then(async resultado => { 
+let somenteum = resultado[Math.floor(Math.random() * resultado.length)]
+//publicando...
+postarfoto(somenteum.imagem, somenteum.frase + "\n\n#frases #motivação #diadia #fy #enriquece\n\nolhe a minha bio e te ensinarei a crescer 🤝")
 })
 console.log("imagem publicada")
+})*/
 
+
+    ig.realtime.on("receive",async(t,message) => {
+        let msg = message[0]
+        if(msg.topic.id == "135" && msg.topic.path == "/ig_sub_iris_response"){
+            let p_threads = (await ig.feed.directPending().request()).inbox.threads
+            for(let i = 0;i<p_threads.length;i++){
+                let id = p_threads[i].thread_id
+                console.log(id)
+                try{
+                    await ig.directThread.approve(id)
+                    await ig.entity.directThread(id).broadcastText("opa tudo bem?")
+                }catch(err){
+                    console.log(err)
+                }
+            }
+        }
+    })
+
+ig.realtime.on("message",async (message)=> { 
+if(message?.message?.user_id == meID) return
+const budy = message.message.text
+
+if (message.item_type == "voice_media") {
+
+reply("sua mensagem foi recebida, aguarde a resposta...");
+const oggPath = await oggToMp3.createOgg(message.message.voice_media.media.audio.audio_src, message.message.item_id);
+const mp3Path = await oggToMp3.convertToMp3(oggPath, message.message.item_id); 
+const text = await streamToText.transcription(mp3Path); 
+await reply(`oque entendi no áudio que você mandou: ${text}`);
+await reply("buscando respostas 🥳...");
+const res = await openai.createChatCompletion({
+        model: "gpt-3.5-turbo",
+        text,
 })
+reply(res.data.choices[0].message)
+removeStreams(mp3Path);
+
 }
 
+})
+ig.realtime.on('error', console.error);
+ig.realtime.on('close', () => console.error('RealtimeClient parou :('));
+await ig.realtime.connect({irisData: threads})
+})()
 
 app.get('/', async (req, res) => {
   res.sendFile('index.html', { root: __dirname })
 });
-
-postarInstagram()
 
 const porta = process.env.PORT || 5000;
 //iniciando...
