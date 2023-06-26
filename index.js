@@ -17,11 +17,19 @@ app.use(express.urlencoded({ extended: false }));
 const { oggToMp3, streamToText } = require("./lib/convertVoice");
 const { removeStreams } = require("./lib/helpers");
 
+
+const { viverdb } = require('./banco/1');
+const { usuario, bot_inf, grupos } = require('./banco/2');
+const { gerarUsuario, veriNumero, verificaNome, verificaAll, semlimit, equilibrio, darlimit, niveladd, addcash, delcash, checkPremium, deletar_premium, adicionar_premium, tempo_expirado, expadd, veriCpf, addcashpix, delcashpix, verificaAllcpf } = require('./banco/3');
+
+//iniciando banco de dados
+viverdb() 
+
 const { get } = pkg;
 
 const configuration = new Configuration({
-      apiKey: "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",
-    });
+	apiKey: "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",
+});
 const openai = new OpenAIApi(configuration);
 
 const ig = withRealtime(new IgApiClient())
@@ -68,6 +76,29 @@ $("div.thought-card.mb-20").each((_, say) => {
   });
 }
 
+async function getMedia(url){
+    let img = await axios.get(url,{responseType:"arraybuffer"})
+    return img.data
+}
+
+const getBuffer = async (url, options) => {
+  try {
+    options ? options : {}
+    const res = await axios({
+      method: "get",
+      url,
+      headers: {
+        'DNT': 1,
+        'Upgrade-Insecure-Request': 1
+      },
+      ...options,
+      responseType: 'arraybuffer'
+    })
+    return res.data
+  } catch (e) {
+    console.log(`Error : ${e}`)
+  }
+}
   
 (async () => {
 
@@ -90,16 +121,7 @@ let meID = loggedInUser.pk
 let threads = await ig.feed.directInbox().request()
 
 
-const postarfoto = async (img, legenda) => {       
-const imageBuffer = await get({
-url: img,
-encoding: null, 
-})
-await ig.publish.photo({
-file: imageBuffer,
-caption: legenda,
-})
-};
+
 
 //postar
 //schedule.scheduleJob("0 0 */1 * * *", async () => { 
@@ -124,7 +146,7 @@ console.log("imagem publicada")
                 console.log(id)
                 try{
                     await ig.directThread.approve(id)
-                    await ig.entity.directThread(id).broadcastText("opa tudo bem?")
+                    await ig.entity.directThread(id).broadcastText("opa tudo bem?, mande qualquer pergunta em áudio e eu irei le responder 😁")
                 }catch(err){
                     console.log(err)
                 }
@@ -135,22 +157,66 @@ console.log("imagem publicada")
 ig.realtime.on("message",async (message)=> { 
 if(message?.message?.user_id == meID) return
 const budy = message.message.text
+const sender = message.message.user_id
+const rg = await verificaAll(sender)
+const rgcheck = await veriNumero(sender)
 
-if (message.item_type == "voice_media") {
 
+const postarfoto = async (img, legenda) => {       
+const imageBuffer = await get({
+url: img,
+encoding: null, 
+})
+await ig.publish.photo({
+file: imageBuffer,
+caption: legenda,
+})
+};
+
+const reply = (teks) => {
+ig.realtime.direct.sendText({text:teks,threadId:message.message.thread_id,reply:{item_id:message.message.item_id,client_context:message.message.client_context}})                                        
+};
+
+const replyimg = async (link) => {
+ig.entity.directThread(message.message.thread_id).broadcastPhoto({file: await getBuffer(link)})
+};
+
+
+if (budy && !budy.includes('rg') && !rgcheck){ 
+reply(`opa amigão parece que você não esta registrado, mande a segunite mensagem: rg, e efetue seu registro para continuar 😉`)
+return
+}
+
+if (message.message.item_type == "voice_media") {
+console.log(message.message.voice_media.media.audio.audio_src)
 reply("sua mensagem foi recebida, aguarde a resposta...");
 const oggPath = await oggToMp3.createOgg(message.message.voice_media.media.audio.audio_src, message.message.item_id);
 const mp3Path = await oggToMp3.convertToMp3(oggPath, message.message.item_id); 
 const text = await streamToText.transcription(mp3Path); 
 await reply(`oque entendi no áudio que você mandou: ${text}`);
+/*if (text.includes("Arte" || "arte")) {
+await reply("criando sua arte 🥳...");
+const response = await openai.createImage({
+prompt: text,
+n: 1,
+size: "512x512",
+});
+replyimg(response.data.data[0].url)
+}else{*/
 await reply("buscando respostas 🥳...");
-const res = await openai.createChatCompletion({
-        model: "gpt-3.5-turbo",
-        text,
+const response = await openai.createCompletion({
+model: "text-davinci-003",
+prompt: text,
+temperature: 0.7,
+max_tokens: 500,
+stop: ["Ai:", "Human:"],
+top_p: 1,
+frequency_penalty: 0.2,
+presence_penalty: 0,
 })
-reply(res.data.choices[0].message)
+reply(response.data.choices[0].text.trim())
 removeStreams(mp3Path);
-
+//}
 }
 
 })

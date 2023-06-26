@@ -10,7 +10,7 @@ class StreamToText {
 
   constructor() {
     const configuration = new Configuration({
-      apiKey: "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",
+      apiKey: "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",
     });
     this.openai = new OpenAIApi(configuration);
   }
