@@ -24,7 +24,10 @@ module.exports.usuario = mongoose.model('usuario', usuario);
 
 const bot_inf = mongoose.Schema({
   totalcmd: { type: Number },
-  conexao: { type: String },
+  caixa1: { type: String },
+  caixa2: { type: String },
+  caixa3: { type: String },
+  ia: { type: String },
   ayu: { type: String }
 }, { versionKey: false });
 module.exports.bot_inf = mongoose.model('bot_inf', bot_inf);

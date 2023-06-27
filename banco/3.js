@@ -1,6 +1,12 @@
 require('../config');
-const { usuario } = require('./2');
+const { usuario, bot_inf } = require('./2');
 const toMs = require('ms');
+
+async function addBotinfo() {
+        let obj = { totalcmd: 0, caixa1: 0, caixa2: 1, caixa3: 1, ia: 'desligada', ayu: 'util'}
+        bot_inf.create(obj)
+    }
+module.exports.addBotinfo = addBotinfo
 
 async function gerarUsuario(nome_usuario, numero, cpfgerado) {
   let obj = { nome_usuario, cpf: cpfgerado, premium: null, numero, limit: limitfree, cash: 0, nivel: 1, exp: 0, madeira: 0, pedra: 0, ferro: 0, lixo: 0, totalreq: 0, status: null, bronze: 0, prata: 0, ouro: 0, diamante: 0 };

@@ -7,6 +7,7 @@ const schedule = require('node-schedule');
 const axios = require('axios');
 const cheerio = require("cheerio");
 const express = require('express');
+const { createReadStream } = require("fs");
 const { Configuration, OpenAIApi } = require("openai");
 
 const app = express();
@@ -15,12 +16,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 const { oggToMp3, streamToText } = require("./lib/convertVoice");
+const { antiSpam } = require('./lib/antispam')
 const { removeStreams } = require("./lib/helpers");
 
 
 const { viverdb } = require('./banco/1');
 const { usuario, bot_inf, grupos } = require('./banco/2');
-const { gerarUsuario, veriNumero, verificaNome, verificaAll, semlimit, equilibrio, darlimit, niveladd, addcash, delcash, checkPremium, deletar_premium, adicionar_premium, tempo_expirado, expadd, veriCpf, addcashpix, delcashpix, verificaAllcpf } = require('./banco/3');
+const { gerarUsuario, addBotinfo, veriNumero, verificaNome, verificaAll, semlimit, equilibrio, darlimit, niveladd, addcash, delcash, checkPremium, deletar_premium, adicionar_premium, tempo_expirado, expadd, veriCpf, addcashpix, delcashpix, verificaAllcpf } = require('./banco/3');
+
+const { randomNumber } = require('./lib/necessita');
 
 //iniciando banco de dados
 viverdb() 
@@ -28,7 +32,7 @@ viverdb()
 const { get } = pkg;
 
 const configuration = new Configuration({
-	apiKey: "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",
+	apiKey: "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",
 });
 const openai = new OpenAIApi(configuration);
 
@@ -139,7 +143,8 @@ console.log("imagem publicada")
 
     ig.realtime.on("receive",async(t,message) => {
         let msg = message[0]
-        if(msg.topic.id == "135" && msg.topic.path == "/ig_sub_iris_response"){
+       // console.log(msg)
+           if(msg.topic.id == "135" && msg.topic.path == "/ig_sub_iris_response"){
             let p_threads = (await ig.feed.directPending().request()).inbox.threads
             for(let i = 0;i<p_threads.length;i++){
                 let id = p_threads[i].thread_id
@@ -160,8 +165,19 @@ const budy = message.message.text
 const sender = message.message.user_id
 const rg = await verificaAll(sender)
 const rgcheck = await veriNumero(sender)
+const isOwner = rg.admin == "sim"
+
+const ia_onff = usuario.findOne({ ayu: "ayu" });
+console.log(ia_onff)
+   		//antispam
+if (budy && antiSpam.isFiltered(sender)) {
+return reply('「 SPAM 」Espere 5 segundos para usar a IA')}
+}        
 
 
+if (budy && !isOwner) antiSpam.addFilter(sender)
+
+console.log(message.message.item_type)
 const postarfoto = async (img, legenda) => {       
 const imageBuffer = await get({
 url: img,
@@ -182,17 +198,38 @@ ig.entity.directThread(message.message.thread_id).broadcastPhoto({file: await ge
 };
 
 
+if (budy == "/ligar" && isOwner) {
+  bot_inf.updateOne({ ia: "desligada" }, { ia: "ligada" } })
+  reply("inteligência ligada!!")
+    }
+
+if (budy == "/desligar" && isOwner) {
+  bot_inf.updateOne({ ia: "ligada" }, { ia: "desligada" } })
+  reply("inteligência desligada!!")
+}
+
 if (budy && !budy.includes('rg') && !rgcheck){ 
 reply(`opa amigão parece que você não esta registrado, mande a segunite mensagem: rg, e efetue seu registro para continuar 😉`)
 return
 }
 
-if (message.message.item_type == "voice_media") {
-console.log(message.message.voice_media.media.audio.audio_src)
+if (budy == "rg") {
+if (rgcheck) return reply("você  ja esta registrado, mande algum audio para eu le responder...")
+let dt = await ig.user.info(sender)
+let cpfgerado = await randomNumber(10)
+gerarUsuario(dt.username, sender,cpfgerado)
+reply(`${dt.username} seu registro foi postado! 😇`)
+postarfoto(dt.hd_profile_pic_url_info.url, `@${dt.username} agora e um de nós, seja bem vindo!! 🥳`)
+}
+
+if (message.message.item_type == "voice_media" && ia_onff.ia == "ligada") {
+try {
+//console.log(message.message.voice_media.media.audio.audio_src)
 reply("sua mensagem foi recebida, aguarde a resposta...");
 const oggPath = await oggToMp3.createOgg(message.message.voice_media.media.audio.audio_src, message.message.item_id);
-const mp3Path = await oggToMp3.convertToMp3(oggPath, message.message.item_id); 
-const text = await streamToText.transcription(mp3Path); 
+const mp3Path = await oggToMp3.convertToMp3(oggPath, message.message.item_id);
+const openStrem = await openai.createTranscription(createReadStream(mp3Path), "whisper-1");
+const text = openStrem.data.text;
 await reply(`oque entendi no áudio que você mandou: ${text}`);
 /*if (text.includes("Arte" || "arte")) {
 await reply("criando sua arte 🥳...");
@@ -217,7 +254,28 @@ presence_penalty: 0,
 reply(response.data.choices[0].text.trim())
 removeStreams(mp3Path);
 //}
+}catch{
+reply("parece que o limit acabou, fale com o criador do bot, @breno.online")
 }
+} else if(message.message.item_type == "text" && ia_onff.ia == "ligada" && !budy.includes('/desligar')) {
+try {
+await reply("buscando respostas 🥳...");
+const response = await openai.createCompletion({
+model: "text-davinci-003",
+prompt: budy,
+temperature: 0.7,
+max_tokens: 500,
+stop: ["Ai:", "Human:"],
+top_p: 1,
+frequency_penalty: 0.2,
+presence_penalty: 0,
+})
+reply(response.data.choices[0].text.trim())
+}catch{
+reply("parece que o limit acabou, fale com o criador do bot, @breno.online")
+}
+}
+
 
 })
 ig.realtime.on('error', console.error);
@@ -231,4 +289,15 @@ app.get('/', async (req, res) => {
 
 const porta = process.env.PORT || 5000;
 //iniciando...
-app.listen(porta, () => console.log("site Online na porta:", porta));
+
+app.listen(porta, () => {
+  console.log(`Aplicativo radando em: http://localhost:${porta}`);
+  schedule.scheduleJob('* * * * *', () => { 
+    bot_inf.findOne({ayu: 'ayu'}).then(async (botInfo) => {
+    if (!util) {
+    addBotinfo()
+    console.log(botInfo)
+   }
+   })
+  });
+});
