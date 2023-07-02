@@ -1,5 +1,4 @@
-w# Dempedency directory
-node_modules
-
-# Lock files
-package-lock.json
+node_modules/
+datas/
+release-builds/
+.gitignore
