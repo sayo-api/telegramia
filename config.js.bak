@@ -1,4 +1,4 @@
-global.bot = "kzme.edit"
+global.bot = "kzm.bot"
 global.senha = "34615194"
 global.prefix = "."
 global.nome_sessao = "kzm"
