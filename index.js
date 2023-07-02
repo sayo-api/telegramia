@@ -7,39 +7,20 @@ const schedule = require('node-schedule');
 const axios = require('axios');
 const cheerio = require("cheerio");
 const express = require('express');
-const { createReadStream } = require("fs");
-const { Configuration, OpenAIApi } = require("openai");
+const BodyForm = require('form-data')
+const util = require('util')
+const yt = require("ytdl-core")
+const yts = require("yt-search")
 
 const app = express();
 app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-const { oggToMp3, streamToText } = require("./lib/convertVoice");
-const { antiSpam } = require('./lib/antispam')
-const { removeStreams } = require("./lib/helpers");
-
-
-const { viverdb } = require('./banco/1');
-const { usuario, bot_inf, grupos } = require('./banco/2');
-const { gerarUsuario, addBotinfo, veriNumero, verificaNome, verificaAll, semlimit, equilibrio, darlimit, niveladd, addcash, delcash, checkPremium, deletar_premium, adicionar_premium, tempo_expirado, expadd, veriCpf, addcashpix, delcashpix, verificaAllcpf } = require('./banco/3');
-
-const { randomNumber } = require('./lib/necessita');
-
-//iniciando banco de dados
-viverdb() 
-
-const iak = false
-
 const { get } = pkg;
 
-const configuration = new Configuration({
-	apiKey: "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",
-});
-const openai = new OpenAIApi(configuration);
-
 const ig = withRealtime(new IgApiClient())
-ig.state.generateDevice("kasumi");
+ig.state.generateDevice(nome_sessao);
 
 
 function saveState(data) {
@@ -57,6 +38,104 @@ function saveState(data) {
     return data;
   }
   
+const getRandom = (ext) => {
+    return `${Math.floor(Math.random() * 10000)}${ext}`
+}
+
+async function ytSearch(query) {
+    return new Promise((resolve, reject) => {
+        try {
+            const cari = yts(query)
+            .then((data) => {
+                res = data.all
+                return res
+            })
+            resolve(cari)
+        } catch (error) {
+            reject(error)
+        }
+        console.log(error)
+    })
+}
+
+function abreviar(num) {
+     if (num >= 1000000000000000000000000000000000) {
+        return (num / 1000000000000000000000000000000000).toFixed(1).replace(/\.0$/, '') + ' d';
+     }
+     if (num >= 1000000000000000000000000000000) {
+        return (num / 1000000000000000000000000000000).toFixed(1).replace(/\.0$/, '') + ' n';
+     }
+     if (num >= 1000000000000000000000000000) {
+        return (num / 1000000000000000000000000000).toFixed(1).replace(/\.0$/, '') + ' o';
+     }     
+     if (num >= 1000000000000000000000000) {
+        return (num / 1000000000000000000000000).toFixed(1).replace(/\.0$/, '') + ' sep';
+     }     
+     
+     if (num >= 1000000000000000000000) {
+        return (num / 1000000000000000000000).toFixed(1).replace(/\.0$/, '') + ' sex';
+     }
+     if (num >= 1000000000000000000) {
+        return (num / 1000000000000000000).toFixed(1).replace(/\.0$/, '') + ' qui';
+     }
+     if (num >= 1000000000000000) {
+        return (num / 1000000000000000).toFixed(1).replace(/\.0$/, '') + ' qua';
+     }     
+     if (num >= 1000000000000) {
+        return (num / 1000000000000).toFixed(1).replace(/\.0$/, '') + ' tri';
+     }          
+                
+     if (num >= 1000000000) {
+        return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + ' bi';
+     }
+     if (num >= 1000000) {
+        return (num / 1000000).toFixed(1).replace(/\.0$/, '') + ' mi';
+     }
+     if (num >= 1000) {
+        return (num / 1000).toFixed(1).replace(/\.0$/, '') + ' mil';
+     }
+     return num;
+}
+  
+function TelegraPh (Path) {
+	return new Promise (async (resolve, reject) => {
+		if (!fs.existsSync(Path)) return reject(new Error("File not Found"))
+		try {
+			const form = new BodyForm();
+			form.append("file", fs.createReadStream(Path))
+			const data = await  axios({
+				url: "https://telegra.ph/upload",
+				method: "POST",
+				headers: {
+					...form.getHeaders()
+				},
+				data: form
+			})
+			return resolve("https://telegra.ph" + data.data[0].src)
+		} catch (err) {
+			return reject(new Error(String(err)))
+		}
+	})
+}  
+
+const getBuffer = async (url, options) => {
+        try {
+                options ? options : {}
+                const res = await axios({
+                        method: "get",
+                        url,
+                        headers: {
+                                'DNT': 1,
+                                'Upgrade-Insecure-Request': 1
+                        },
+                        ...options,
+                        responseType: 'arraybuffer'
+                })
+                return res.data
+        } catch (e) {
+                console.log(`Error : ${e}`)
+        }
+}
   
 function pensador(nome) {
 return new Promise((resolve, reject) => {
@@ -82,33 +161,64 @@ $("div.thought-card.mb-20").each((_, say) => {
   });
 }
 
+async function ytPlayMp4(query) {
+    return new Promise((resolve, reject) => {
+        try {
+            const search = yts(query)
+            .then((data) => {
+                const url = []
+                const pormat = data.all
+                for (let i = 0; i < pormat.length; i++) {
+                    if (pormat[i].type == 'video') {
+                        let dapet = pormat[i]
+                        url.push(dapet.url)
+                    }
+                }
+                const id = yt.getVideoID(url[0])
+                const yutub = yt.getInfo(`https://www.youtube.com/watch?v=${id}`)
+                .then((data) => {
+                    let pormat = data.formats
+                    let video = []
+                    for (let i = 0; i < pormat.length; i++) {
+                    if (pormat[i].container == 'mp4' && pormat[i].hasVideo == true && pormat[i].hasAudio == true) {
+                        let vid = pormat[i]
+                        video.push(vid.url)
+                    }
+                   }
+                    const title = data.player_response.microformat.playerMicroformatRenderer.title.simpleText
+                    const thumb = data.player_response.microformat.playerMicroformatRenderer.thumbnail.thumbnails[0].url
+                    const channel = data.player_response.microformat.playerMicroformatRenderer.ownerChannelName
+                    const views = data.player_response.microformat.playerMicroformatRenderer.viewCount
+                    const published = data.player_response.microformat.playerMicroformatRenderer.publishDate
+                    const result = {
+                    título: title,
+                    thumb: thumb,
+                    canal: channel,
+                    publicado: published,
+                    visualizações: views,
+                    segundos: data.player_response.microformat.playerMicroformatRenderer.lengthSeconds,
+                    url: video[0]
+                    }
+                    return(result)
+                })
+                return(yutub)
+            })
+            resolve(search)
+        } catch (error) {
+            reject(error)
+        }
+        console.log(error)
+    })
+}
+
 async function getMedia(url){
     let img = await axios.get(url,{responseType:"arraybuffer"})
     return img.data
 }
-
-const getBuffer = async (url, options) => {
-  try {
-    options ? options : {}
-    const res = await axios({
-      method: "get",
-      url,
-      headers: {
-        'DNT': 1,
-        'Upgrade-Insecure-Request': 1
-      },
-      ...options,
-      responseType: 'arraybuffer'
-    })
-    return res.data
-  } catch (e) {
-    console.log(`Error : ${e}`)
-  }
-}
   
 (async () => {
 
-
+//iniciar sessão e salvar sessão {
 if (stateExists()) {
 await ig.state.deserialize(loadState());
 }
@@ -123,67 +233,34 @@ const serialized = await ig.state.serialize();
 delete serialized.constants; 
 saveState(serialized);
 }
-let meID = loggedInUser.pk
-let threads = await ig.feed.directInbox().request()
+
+//id do bot
+const meID = loggedInUser.pk
+//box
+const threads = await ig.feed.directInbox().request()
 
 
 
-
-//postar
-//schedule.scheduleJob("0 0 */1 * * *", async () => { 
-/*const ArrayTema = ["motivação","rimas","mentalidade","reflexões","poesia","músicas","lírico","dinheiro","inspiração"]
-let tema = ArrayTema[Math.floor(Math.random() * ArrayTema.length)]
-//imagem
-pensador(tema).then(async resultado => { 
-let somenteum = resultado[Math.floor(Math.random() * resultado.length)]
-//publicando...
-postarfoto(somenteum.imagem, somenteum.frase + "\n\n#frases #motivação #diadia #fy #enriquece\n\nolhe a minha bio e te ensinarei a crescer 🤝")
+// ACEITAR AUTOMATICAMENTE MENSAGENS
+ig.realtime.on("receive",async(t,message) => {
+let msg = message[0]
+// console.log(msg)
+if(msg.topic.id == "135" && msg.topic.path == "/ig_sub_iris_response"){
+let p_threads = (await ig.feed.directPending().request()).inbox.threads
+for(let i = 0;i<p_threads.length;i++){
+let id = p_threads[i].thread_id
+console.log(id)
+try{
+await ig.directThread.approve(id)
+await ig.entity.directThread(id).broadcastText(aceitar_msg)
+}catch(err){
+console.log(err)
+}
+}
+}
 })
-console.log("imagem publicada")
-})*/
 
 
-    ig.realtime.on("receive",async(t,message) => {
-        let msg = message[0]
-       // console.log(msg)
-           if(msg.topic.id == "135" && msg.topic.path == "/ig_sub_iris_response"){
-            let p_threads = (await ig.feed.directPending().request()).inbox.threads
-            for(let i = 0;i<p_threads.length;i++){
-                let id = p_threads[i].thread_id
-                console.log(id)
-                try{
-                    await ig.directThread.approve(id)
-                    await ig.entity.directThread(id).broadcastText("opa tudo bem?, mande qualquer pergunta em áudio e eu irei le responder 😁")
-                }catch(err){
-                    console.log(err)
-                }
-            }
-        }
-    })
-    
-  
- 
-
-    
-
-ig.realtime.on("message",async (message)=> { 
-if(message?.message?.user_id == meID) return
-if(message.message.user_id == meID) return
-const budy = message.message.text
-const sender = message.message.user_id
-const rg = await verificaAll(sender)
-const rgcheck = await veriNumero(sender)
-const isOwner = rg.admin == "sim"
-
-
-if (budy && antiSpam.isFiltered(sender)) {
-return reply('「 SPAM 」Espere 5 segundos para usar a IA')
-}        
-
-
-if (budy && !isOwner) antiSpam.addFilter(sender)
-
-console.log(message.message.item_type)
 const postarfoto = async (img, legenda) => {       
 const imageBuffer = await get({
 url: img,
@@ -195,142 +272,118 @@ caption: legenda,
 })
 };
 
+const postarvideo = async (link, link2, legenda) => {       
+const videoBuffer = await get({
+url: link,
+encoding: null, 
+})
+const videoBufferThumb = await get({
+url: link2,
+encoding: null, 
+})
+await ig.publish.video({
+video: videoBuffer,
+coverImage: videoBufferThumb,
+caption: legenda,
+})
+};
+
+//postar a cada 1 hora
+schedule.scheduleJob("0 0 */1 * * *", async () => { 
+try {
+const ArrayTema = ["motivação status 30 segundos","edit anime 30 segundos","edit amv ","reflexões status 30 segundos","status musica","status lirick","status funk","30 segundos edit","edit 30 segundos"]
+let tema = ArrayTema[Math.floor(Math.random() * ArrayTema.length)]
+ytPlayMp4(tema).then(async result => {
+console.log(result.segundos)
+if (result.segundos <= 60) {
+postarvideo(result.url, "https://telegra.ph/file/2dd43a5f5765bb273c441.jpg", `postagem diaria de videos, quer ter um engajamento ou automatizar seu Instagram? olhe minha bio e ja segue!!\n\n #fy #fyp #motivação #mentemilionaria #sigma #edit #anime #motivação #status\n\ncreditos: ${result.canal}`)
+}else{
+console.log("video grande")
+}
+})
+} catch {
+console.log("erro") 
+}
+console.log("video publicado")
+})
+
+
+//detectar mensagens!
+ig.realtime.on("message",async (message)=> { 
+try {
+if(message.message.user_id == meID) return
+if(!message.message.item_type == "text") return
+const sender = message.message.user_id
+//const infouser = await ig.user.info(sender)
+//const pushname = infouser.username
+const budy = message.message.text
+const args = budy.split(/ +/).slice(1)
+const q = args.join(' ')
+const isCmd = budy.startsWith(prefix)
+const command = isCmd ? budy.slice(prefix.length).trim().split(' ').shift().toLowerCase(): ''
+
+const telegraup = async (link) => {       
+ran = getRandom('.jpg')
+buff = await getBuffer(link)
+fs.writeFileSync(ran, buff)
+anu = await TelegraPh(ran)
+return util.format(anu)
+}
+
+
+
 const reply = (teks) => {
 ig.realtime.direct.sendText({text:teks,threadId:message.message.thread_id,reply:{item_id:message.message.item_id,client_context:message.message.client_context}})                                        
 };
 
 const replyimg = async (link) => {
-ig.entity.directThread(message.message.thread_id).broadcastPhoto({file: await getBuffer(link)})
+ig.entity.directThread(message.message.thread_id).broadcastPhoto({file: await getMedia(link)})
 };
 
 
-       const sendVideo = async (clip) => {
-            let video = clip.video_versions[0]
-            await ig.realtime.direct.sendText({text:"baixando...",threadId:message.message.thread_id,reply:{item_id:message.message.item_id,client_context:message.message.client_context}})
-            let vid = await getMedia(video.url)
-            return await ig.entity.directThread(message.message.thread_id).broadcastVideo({video:vid})
-        }
-        const sendImage = async (image) => {
-            await ig.realtime.direct.sendText({text:"baixando...",threadId:message.message.thread_id,reply:{item_id:message.message.item_id,client_context:message.message.client_context}})
-            let img = await getMedia(image.image_versions2.candidates[0].url)
-            return await ig.entity.directThread(message.message.thread_id).broadcastPhoto({file:img})
-        }
-
-
-if (budy && !budy.includes('rg') && !rgcheck){ 
-reply(`opa amigão parece que você não esta registrado, mande a segunite mensagem: rg, e efetue seu registro para continuar 😉`)
-return
+const sendVideo = async (clip) => {
+let video = clip.video_versions[0]
+await ig.realtime.direct.sendText({text:"baixando...",threadId:message.message.thread_id,reply:{item_id:message.message.item_id,client_context:message.message.client_context}})
+let vid = await getMedia(video.url)
+return await ig.entity.directThread(message.message.thread_id).broadcastVideo({video:vid})
+}
+const sendImage = async (image) => {
+await ig.realtime.direct.sendText({text:"baixando...",threadId:message.message.thread_id,reply:{item_id:message.message.item_id,client_context:message.message.client_context}})
+let img = await getMedia(image.image_versions2.candidates[0].url)
+return await ig.entity.directThread(message.message.thread_id).broadcastPhoto({file:img})
 }
 
-if (budy == "rg") {
-if (rgcheck) return reply("você  ja esta registrado, mande algum audio para eu le responder...")
-let dt = await ig.user.info(sender)
-let cpfgerado = await randomNumber(10)
-gerarUsuario(dt.username, sender,cpfgerado)
-reply(`${dt.username} seu registro foi postado! 😇`)
-postarfoto(dt.hd_profile_pic_url_info.url, `@${dt.username} agora e um de nós, seja bem vindo!! 🥳`)
+//sessão comandos
+switch (command) {
+
+case "menu": {
+reply("Opaa, bem vindo, sou uma ia que faz postagem automaticamente, quer me adquirir?, compre aqui, ai te ensinarei passo a passo de como instalar")
 }
-/*
-if (budy == "seguir") {
-const followersFeed = await ig.feed.accountFollowers(id);
-  const followers = [];
-  
-  const e = async () => {
-    let items = await followersFeed.items();
-    for(let i = 0;i<1;i++){
-    console.log(items[i].id_pk)
-    ig.friendship.create(items[i].id_pk);
-    const isMore = await followersFeed.isMoreAvailable();
-      if (isMore) {
-        await delay(9 * 1000)  // delay 20 sec anti ban mode
-        e();
-      } else {
-        console.log("=====> All Followers Extracted");
-      }
-  };
-//  await e()    
-setTimeout(() => await e(), 20 * 1000)
-    
+break
+case "publicar": {
+
 }
-
-*/
-
-
-
-if (message.message.item_type == "voice_media") {
-await reply("buscando respostas 🥳...");
-const response = await openai.createCompletion({
-model: "text-davinci-003",
-prompt: text,
-temperature: 0.7,
-max_tokens: 500,
-stop: ["Ai:", "Human:"],
-top_p: 1,
-frequency_penalty: 0.2,
-presence_penalty: 0,
+break
+}
+} catch (e) {
+const isError = String(e)
+console.log(isError)
+}
 })
-reply(response.data.choices[0].text.trim())
-removeStreams(mp3Path);
-//}
-}else{
-reply("ia off-line no momento, volte mais tarde!, você ainda pode baixar story, e publicações,  so enviar elas para mim compartilhando-as, somente publicação de contas públicas!")
-}
-if (message.message) {
-console.log(message.message)
-}
 
-        if(message.message.item_type == "placeholder"){
-          //  let clip = message.message.placeholder.placeholder
-            return await reply("function download video incomparable")
-        }else{
-            if(message.message.item_type == "media_share"){
-                if(message.message.media_share.media_type == 1){
-                   let image = message.message.media_share
-                   return await sendImage(image)
-                }else if(message.message.media_share.media_type == 8){
-                    let items = message.message.media_share.carousel_media
-                    let selectedItem = items.find(i => i.id == message.message.media_share.carousel_share_child_media_id)
-                    if(selectedItem.media_type == 1){
-                        return await sendImage(selectedItem)
-                    }else if(selectedItem.media_type == 2){
-                        return await sendVideo(selectedItem)
-                    }
-                }
-            }else if(message.message.item_type == "story_share"){
-                if(message.message.story_share?.title) return await ig.realtime.direct.sendText({text:"o story que você enviou não está disponível para mim porque não estou seguindo o usuário",threadId:message.message.thread_id,reply:{item_id:message.message.item_id,client_context:message.message.client_context}})
-                else if(message.message.story_share.media.media_type == 1){
-                    let image = message.message.story_share.media
-                    return await sendImage(image)
-                 }else if(message.message.story_share.media.media_type == 2){
-                     let video = message.message.story_share.media
-                     return await sendVideo(video)
-                 }
-            }
-
-        }
-
-
-})
+//iniciando o realtime {
 ig.realtime.on('error', console.error);
 ig.realtime.on('close', () => console.error('RealtimeClient parou :('));
 await ig.realtime.connect({irisData: threads})
 })()
 
+//site
 app.get('/', async (req, res) => {
   res.sendFile('index.html', { root: __dirname })
 });
 
+
+
 const porta = process.env.PORT || 5000;
 //iniciando...
-
-app.listen(porta, () => {
-  console.log(`Aplicativo radando em: http://localhost:${porta}`);
-  schedule.scheduleJob('* * * * *', () => { 
-    bot_inf.findOne({ayu: 'ayu'}).then(async (botInfo) => {
-    if (!botInfo) {
-    addBotinfo()
-//    console.log(botInfo)
-   }
-   })
-  });
-});
+app.listen(porta, () => console.log("site Online na porta:", porta));

@@ -1,6 +1,5 @@
-global.bot = "breno.js_dev"
+global.bot = "kzm.bot"
 global.senha = "34615194"
-global.linkdb = "mongodb+srv://Sayo:3461@cluster0.cdd0g.mongodb.net/instaboteque?retryWrites=true&w=majority"
-global.limitfree = 5
-global.limitpago = 9999999
-global.prefix = "!"
+global.prefix = "."
+global.nome_sessao = "kzm"
+global.aceitar_msg = "olá, seja bem vindo a minha inteligência artificial, comece digitando .menu 😁"
